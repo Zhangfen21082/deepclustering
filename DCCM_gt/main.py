@@ -64,7 +64,8 @@ def main():
 	# 构建网络（编码器和判别器损失）
 	model = models.__dict__[args.arch](args.num_classes).cuda()
 	print("=> created encoder '{}'".format(args.arch))
-	
+
+	# 判别器
 	toy_input = torch.zeros([5, 3, args.input_size, args.input_size]).cuda()
 	arch_info = get_dim(model, toy_input, args.layers, args.c_layer)
 
@@ -101,6 +102,11 @@ def main():
 	dataloader = torch.utils.data.DataLoader(
 		  dataset, batch_size=args.large_bs,
 		  num_workers=args.workers, pin_memory=True, shuffle=True)
+	"""
+	keras.preprocessing.image.ImageDataGenerator是一个用于生成增强的图像数据集的类
+	它可以自动对输入的图像数据进行一系列随机变换，如旋转、平移、缩放、翻转、剪切等，以扩充训练数据集的规模和多样性
+	从而提高模型的泛化能力
+	"""
 	datagen = ImageDataGenerator(
 		  rotation_range=20,
 		  width_shift_range=0.18,
@@ -115,10 +121,10 @@ def main():
 	
 		end = time.time()
 
-		# Evaluation
+		# 验证
 		nmi, acc, ari = test(dataloader, model, epoch, tb_logger)
 	
-		# saving checkpoint
+		# 保存
 		is_best_nmi = nmi > best_nmi
 		best_nmi = max(nmi, best_nmi)
 		save_checkpoint({
@@ -147,7 +153,6 @@ def train(loader, model, dim_loss, crit_label, crit_graph, crit_c, optimizer, ep
 	
 	logger = logging.getLogger('global_logger')
 
-	# switch to train mode
 	model.train()
 	dim_loss.train()
 
@@ -248,17 +253,22 @@ def test(loader, model, epoch, tb_logger):
 
 	model.eval()
 
-	# Forward and save predicted labels
+	"""
+	遍历loader中的每个batch，并将其输入到模型中以获得预测结果。具体来说，
+	将每个batch的目标值与模型的预测值进行比较，并将这些值存储在gnd_labels和
+	pred_labels两个数组中
+	"""
 	gnd_labels = []
 	pred_labels = []
 	for i, (input_tensor, target) in enumerate(loader):
 		input_var = torch.autograd.Variable(input_tensor.cuda())
 		with torch.no_grad():
+			# 如果参数中args.split为True那么就进行拆分
 			if args.split:
 				vec_list = []
 				bs = args.large_bs // args.split
 				for kk in range(args.split):
-					temp, _, _ = forward(model, input_var[kk*bs:(kk+1)*bs], 
+					temp, _, _ = forward(model, input_var[kk*bs:(kk+1)*bs],
 						  args.layers, args.c_layer)
 					vec_list.append(temp)
 				vec = torch.cat(vec_list, dim=0)
@@ -272,15 +282,15 @@ def test(loader, model, epoch, tb_logger):
 	# Computing Evaluations
 	gnd_labels = np.array(gnd_labels)
 	pred_labels = np.array(pred_labels)
-	
+
 	nmi = normalized_mutual_info_score(gnd_labels, pred_labels)
 	acc = clustering_acc(gnd_labels, pred_labels)
 	ari = adjusted_rand_score(gnd_labels, pred_labels)
 
 	# Logging
 	logger.info('Epoch: [{0}/{1}]\t ARI against ground truth label: {2:.3f}'.format(epoch, args.epochs, ari))
-	logger.info('Epoch: [{0}/{1}]\t NMI against ground truth label: {2:.3f}'.format(epoch, args.epochs, nmi)) 
-	logger.info('Epoch: [{0}/{1}]\t ACC against ground truth label: {2:.3f}'.format(epoch, args.epochs, acc)) 
+	logger.info('Epoch: [{0}/{1}]\t NMI against ground truth label: {2:.3f}'.format(epoch, args.epochs, nmi))
+	logger.info('Epoch: [{0}/{1}]\t ACC against ground truth label: {2:.3f}'.format(epoch, args.epochs, acc))
 	step = epoch * len(loader)
 	tb_logger.add_scalar('ARI', ari, step)
 	tb_logger.add_scalar('NMI', nmi, step)

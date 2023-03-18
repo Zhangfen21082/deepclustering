@@ -8,8 +8,19 @@ import torch.nn as nn
 from .myLinearAssignment import linear_assignment
 import pdb
 
+
+"""
+这段代码定义了一个叫做 AverageMeter 的类，用于计算和存储平均值和当前值。具体来说，这个类有以下几个方法：
+	__init__(self, length=0)：构造函数，初始化 AverageMeter 类的一个实例。可以传入一个可选参数 length，用于指定历史记录的长度。
+	reset(self)：重置计数器，将历史记录清空。如果 length 大于 0，则清空 history 列表，否则将 count 和 sum 清零。
+	update(self, val)：更新计数器，将当前值加入历史记录，并更新当前值和平均值。如果 length 大于 0，则将当前值加入 history 列表，
+					  并计算列表中最后 length 个元素的平均值；否则累加当前值到 sum 中，增加 count 计数器的值，并计算累计和的
+					  平均值。
+通过这个类，可以方便地计算一组数据的平均值，并且可以控制历史记录的长度。这在很多需要统计平均值的应用中非常有用
+比如机器学习中的训练损失和准确率的统计
+"""
 class AverageMeter(object):
-	"""Computes and stores the average and current value"""
+	"""用于计算和存储平均值以及当前的值"""
 	def __init__(self, length=0):
 		self.length = length
 		self.reset()
