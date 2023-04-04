@@ -41,7 +41,7 @@ if __name__ == "__main__":
     torch.cuda.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    # prepare data
+    # 数据准备
     if args.dataset == "CIFAR-10":
         train_dataset = torchvision.datasets.CIFAR10(
             root=args.dataset_dir,
@@ -57,6 +57,7 @@ if __name__ == "__main__":
         )
         dataset = data.ConcatDataset([train_dataset, test_dataset])
         class_num = 10
+
     elif args.dataset == "CIFAR-100":
         train_dataset = torchvision.datasets.CIFAR100(
             root=args.dataset_dir,
@@ -72,12 +73,14 @@ if __name__ == "__main__":
         )
         dataset = data.ConcatDataset([train_dataset, test_dataset])
         class_num = 20
+
     elif args.dataset == "ImageNet-10":
         dataset = torchvision.datasets.ImageFolder(
             root='datasets/imagenet-10',
             transform=transform.Transforms(size=args.image_size, blur=True),
         )
         class_num = 10
+
     elif args.dataset == "ImageNet-dogs":
         dataset = torchvision.datasets.ImageFolder(
             root='datasets/imagenet-dogs',
@@ -92,6 +95,7 @@ if __name__ == "__main__":
         class_num = 200
     else:
         raise NotImplementedError
+
     data_loader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -99,11 +103,11 @@ if __name__ == "__main__":
         drop_last=True,
         num_workers=args.workers,
     )
-    # initialize model
-    res = resnet.get_resnet(args.resnet)
+    # 初始化模型
+    res = resnet.get_resnet(args.resnet)  # ResNet（PCB）
     model = network.Network(res, args.feature_dim, class_num)
     model = model.to('cuda')
-    # optimizer / loss
+    # 优化 / 损失
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate, weight_decay=args.weight_decay)
     if args.reload:
         model_fp = os.path.join(args.model_path, "checkpoint_{}.tar".format(args.start_epoch))
@@ -112,8 +116,10 @@ if __name__ == "__main__":
         optimizer.load_state_dict(checkpoint['optimizer'])
         args.start_epoch = checkpoint['epoch'] + 1
     loss_device = torch.device("cuda")
+    # 实例级对比损失
     criterion_instance = contrastive_loss.InstanceLoss(args.batch_size, args.instance_temperature, loss_device).to(
         loss_device)
+    # 聚类级对比损失
     criterion_cluster = contrastive_loss.ClusterLoss(class_num, args.cluster_temperature, loss_device).to(loss_device)
     # train
     for epoch in range(args.start_epoch, args.epochs):

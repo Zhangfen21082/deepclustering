@@ -6,9 +6,11 @@ from torch.nn.functional import normalize
 class Network(nn.Module):
     def __init__(self, resnet, feature_dim, class_num):
         super(Network, self).__init__()
-        # 共享的ResNet
+        # 共享的ResNet（PCB）
         self.resnet = resnet
+        # 行空间维度
         self.feature_dim = feature_dim
+        # 列空间维度
         self.cluster_num = class_num
         # 两个MLP
         self.instance_projector = nn.Sequential(
