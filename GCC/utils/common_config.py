@@ -43,14 +43,28 @@ def get_feature_dimensions_backbone(p):
     else:
         raise NotImplementedError
 """
-根据参数p中指定的模型架构和预训练权重路径pretrain_path来构建一个PyTorch模型。
-具体来说，函数首先根据p['backbone']的值选择相应的骨干网络，
-然后根据p['setup']的值选择相应的模型类型。如果pretrain_path不为None，
-则函数会加载指定路径下的预训练权重。最后，函数返回构建好的模型。
+用于根据指定的架构和预训练的权重路径构建一个PyTorch模型。
+该函数首先根据p['backbone']的值来选择合适的骨干网络。
+如果train_db_name是cifar-10、cifar-20或stl-10，该函数会导入resnet_cifar或resnet_stl模块，并以resnet18架构初始化骨干网
+如果train_db_name包含字符串 "imagenet"，则用resnet_stl模块的resnet18架构初始化骨干网
+如果p['backbone']是resnet34，并且train_db_name包含字符串 "imagenet"，那么骨干网将用resnet_stl模块中的resnet34架构初始化
+如果p['backbone']是resnet50，并且train_db_name包含字符串 "imagenet"，那么骨干网将用resnet模块的resnet50架构初始化
+如果这些条件都不满足，就会出现NotImplementedError。
+
+在选择骨干网后，该函数根据p['setup']的值初始化模型
+如果 p['setup'] 是 simclr 或 moco，该函数从 models 模块导入 ContrastiveModel 类，并用骨干网和指定的 model_kwargs 来初始化模型
+如果 p['setup'] 是 scan 或 selflabel，该函数从 models 模块导入 ClusteringModel 类，并用骨架、类的数量（p['num_classes']）和头的数量（p['num_heads']）初始化模型
+如果 p['setup'] 是 selflabel，该函数断言 p['num_heads'] 是 1。如果 p['setup'] 是 end2end，该函数从 models 模块导入 End2EndModel 类，并用主干和指定的 model_kwargs 来初始化该模型
+如果这些条件都不满足，就会产生一个ValueError
+
+最后，如果 pretrain_path 不是 None 并且指定的路径存在，该函数将加载预训练的权重并将其转移到模型中
+如果p['setup']是selflabel，该函数只继续使用最好的头，并删除所有其他的头
+如果pretrain_path不是None，但指定的路径不存在，则会产生ValueError
+如果pretrain_path是None，函数会返回初始化的模型。
 """
 
 def get_model(p, pretrain_path=None):
-    # Get backbone
+    # 获取主干网络
     if p['backbone'] == 'resnet18':
         if p['train_db_name'] in ['cifar-10', 'cifar-20']:
             from models.resnet_cifar import resnet18
@@ -83,7 +97,7 @@ def get_model(p, pretrain_path=None):
     else:
         raise ValueError('Invalid backbone {}'.format(p['backbone']))
 
-    # Setup
+    # 根据Setup初始化模型
     if p['setup'] in ['simclr', 'moco']:
         from models.models import ContrastiveModel
         model = ContrastiveModel(backbone, **p['model_kwargs'])
@@ -124,6 +138,14 @@ def get_model(p, pretrain_path=None):
         pass
 
     return model
+
+"""
+这段代码定义了一个名为get_train_dataset的函数，它接受一些参数并返回一个数据集，根据参数p['train_db_name']的值
+函数会选择不同的数据集，包括CIFAR-10、CIFAR-20、STL-10、ImageNet10、ImageNet Dogs、TinyImageNet、ImageNet以及ImageNet的子集。
+如果to_augmented_dataset参数为True，则返回一个AugmentedDataset，该数据集返回一个图像及其增强版本
+如果to_neighbors_dataset参数为True，则返回一个NeighborsDataset，该数据集返回一个图像及其最近邻之一
+如果to_end2end_dataset参数为True，则返回一个End2EndDataset，该数据集返回一个图像及其最近邻之一，用于端到端训练 
+"""
 
 
 def get_train_dataset(p, transform, to_augmented_dataset=False,
@@ -182,7 +204,7 @@ def get_train_dataset(p, transform, to_augmented_dataset=False,
             indices = None
         else:
             indices = np.load(p['topk_neighbors_val_path'])
-        #dataset = ConcatDataset([dataset, val_dataset])
+        # dataset = ConcatDataset([dataset, val_dataset])
         dataset = End2EndDataset(dataset, indices, p['num_neighbors'])
 
     return dataset
@@ -256,7 +278,13 @@ def get_val_dataloader(p, dataset):
             batch_size=p['batch_size'], pin_memory=True, collate_fn=collate_custom,
             drop_last=False, shuffle=False)
 
-
+"""
+ 该函数根据p['augmentation_strategy']的值返回一个数据增强的组合
+ 如果p['augmentation_strategy']的值为standard，则使用标准的数据增强策略，包括随机裁剪、随机水平翻转、转换为张量和归一化
+ 如果p['augmentation_strategy']的值为simclr，则使用SimCLR论文中的数据增强策略，包括随机裁剪、随机水平翻转、随机颜色抖动、随机灰度化、转换为张量和归一化
+ 如果p['augmentation_strategy']的值为ours，则使用我们论文中的数据增强策略，包括随机水平翻转、随机裁剪、强数据增强、转换为张量、归一化和Cutout
+ 如果p['augmentation_strategy']的值不是这三个值之一，则引发ValueError异常，提示Invalid augmentation strategy
+"""
 def get_train_transformations(p):
     if p['augmentation_strategy'] == 'standard':
         # Standard augmentation strategy

@@ -59,6 +59,12 @@ class ProgressMeter(object):
         return '[' + fmt + '/' + fmt.format(num_batches) + ']'
 
 
+"""
+这个函数接受三个参数：数据集加载器loader、模型model和内存库memory_bank。
+函数首先将模型设置为评估模式，然后重置内存库。接下来，函数遍历数据集中的每个批次，
+将图像和目标值转移到GPU上，通过模型将图像转换为特征向量，然后将特征向量和目标值存储到内存库中。
+最后，每处理100个批次，函数打印一次日志 
+"""
 @torch.no_grad()
 def fill_memory_bank(loader, model, memory_bank):
     model.eval()
