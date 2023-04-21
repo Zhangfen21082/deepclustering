@@ -11,6 +11,11 @@ import copy
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 
+"""
+inference函数的作用是对给定的数据集进行推断，返回每个样本的特征向量和标签向量
+函数对数据集进行迭代，将每个样本的特征向量和标签向量添加到相应的向量列表中
+最后，函数将特征向量和标签向量转换为NumPy数组并返回。
+"""
 def inference(loader, model, device):
     model.eval()
     feature_vector = []

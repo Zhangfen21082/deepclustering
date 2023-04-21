@@ -31,9 +31,9 @@ parser.add_argument('--config_exp',
                     help='Config file for the experiment')
 args = parser.parse_args()
 
-# 解释一下这段代码作用（用中文回答）
+# 解释一下这段代码作用，并逐行进行解释（用中文回答）
 def main():
-    # 创建两个AugFeat对象，分别用于存储原始特征和增强后的特征
+    # 创建两个AugFeat对象，分别用于存储原始特征和增强后的特征（特征缓存器，以加快存储速度）
     org_feat_memory = AugFeat('./org_feat_memory', 4)
     aug_feat_memory = AugFeat('./aug_feat_memory', 4)
 
@@ -49,25 +49,28 @@ def main():
     print('Model parameters: {:.2f}M'.format(sum(p.numel() for p in model.parameters()) / 1e6))
     model = model.cuda()
 
-    # CUDNN
+    # 启用benchmark加速
     print(colored('Set CuDNN benchmark', 'blue'))
     torch.backends.cudnn.benchmark = True
 
-    # Dataset
+    # 数据集
     print(colored('Retrieve dataset', 'blue'))
     train_transforms = get_train_transformations(p)
     print('Train transforms:', train_transforms)
     val_transforms = get_val_transformations(p)
     print('Validation transforms:', val_transforms)
 
-    # Memory Bank
-    print(colored('Build MemoryBank', 'blue'))
+    # 内存库MemoryBank', 'blue'))
     base_dataset = get_train_dataset(p, val_transforms, to_end2end_dataset=True, split='train') # Dataset for performance test
     # for compare with SCAN
-    #base_dataset = get_val_dataset(p, val_transforms, to_end2end_dataset=True) # Dataset for performance test
+    # base_dataset = get_val_dataset(p, val_transforms, to_end2end_dataset=True) # Dataset for performance test
     base_dataloader = get_val_dataloader(p, base_dataset)
     print('Dataset contains {} test samples'.format(len(base_dataset)))
-
+    
+    # 使用 MemoryBank 类创建一个内存库，该库用于存储特征向量。这个内存库的
+    # 大小是 len(base_dataset)
+    # 特征向量的维度是 p['model_kwargs']['features_dim']
+    # 类别数是 p['num_classes']，温度是 p['criterion_kwargs']['temperature']
     memory_bank_base = MemoryBank(len(base_dataset),
                                 p['model_kwargs']['features_dim'],
                                 p['num_classes'], p['criterion_kwargs']['temperature'])
@@ -91,12 +94,16 @@ def main():
         print(colored('No checkpoint file at {}'.format(p['end2end_checkpoint']), 'blue'))
         exit(-1)
 
+    # 将数据集中的图像通过模型转换为特征向量，并将这些特征向量存储到内存库中
     fill_memory_bank(base_dataloader, model, memory_bank_base)
-    #for topk in range(5, 51, 5):
+
+    # 内存库中查找最近的邻居，并计算在验证集上的准确率
+    # for topk in range(5, 51, 5):
     for topk in range(5, 6, 5):
         indices, acc, detail_acc = memory_bank_base.mine_nearest_neighbors(topk)
         print('Accuracy of top-%d nearest neighbors on val set is %.2f' %(topk, 100*acc))
 
+    # 将内存库中的特征向量和对应的标签保存到文件中
     memory_bank_base.cpu()
     with open (p['features'], 'wb') as f:
         np.save(f, memory_bank_base.features)
@@ -106,6 +113,7 @@ def main():
     #from tsne import kmeans
     #kmeans(memory_bank_base.features.cpu().numpy(), memory_bank_base.targets.cpu().numpy())
 
+    # 使用预训练模型对数据集进行聚类，并输出聚类结果的统计信息
     predictions, features, targets = get_predictions(p, base_dataloader, model, return_features=True)
     lowest_loss_head = 0
     clustering_stats = hungarian_evaluate(lowest_loss_head, predictions, compute_confusion_matrix=False)
