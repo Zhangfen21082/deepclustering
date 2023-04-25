@@ -13,11 +13,26 @@ os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 def train():
     loss_epoch = 0
     for step, ((x_i, x_j, x_k), _) in enumerate(data_loader):
+        # x_i, x_j和x_k是三张图像
         optimizer.zero_grad()
         x_i = x_i.to('cuda')
         x_j = x_j.to('cuda')
         x_k = x_k.to('cuda')
+        
+        """
+        o_i、o_j和o_k是这三张图像的编码。t_i、t_j和t_k是这三张图像的目标编码，
+        是通过对这三张图像的数据增强得到的。在BYOL中，模型的目标是最小化编码之间的差异，
+        因此o_i、o_j和o_k是用于计算损失的编码，
+        而t_i、t_j和t_k是用于计算编码之间差异的目标编码
+        """
         loss_instance, o_i, o_j, o_k, t_i, t_j, t_k = model(x_i, x_j, x_k)
+
+        """
+        loss_cluster0、loss_cluster1、loss_cluster2和loss_cluster3是四个不同的聚类损失，
+        用于计算编码之间的差异。其中，loss_cluster0计算o_i和t_k之间的差异，
+        loss_cluster1计算o_j和t_k之间的差异，loss_cluster2计算o_k和t_i之间的差异，
+        loss_cluster3计算o_k和t_j之间的差异。这四个损失的平均值被用作loss_cluster。
+        """
         loss_cluster0 = criterion_cluster(o_i, t_k.detach())
         loss_cluster1 = criterion_cluster(o_j, t_k.detach())
         loss_cluster2 = criterion_cluster(o_k, t_i.detach())
@@ -130,3 +145,5 @@ if __name__ == "__main__":
             save_model(args, model, optimizer, epoch)
         print(f"Epoch [{epoch}/{args.epochs}]\t Loss: {loss_epoch / len(data_loader)}")
     save_model(args, model, optimizer, args.epochs)
+
+

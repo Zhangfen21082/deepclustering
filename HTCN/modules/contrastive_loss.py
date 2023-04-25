@@ -13,6 +13,7 @@ class InstanceLoss(nn.Module):
         self.mask = self.mask_correlated_samples(batch_size)
         self.criterion = nn.CrossEntropyLoss(reduction="sum")
 
+    # 掩码矩阵，用于排除相关样本
     def mask_correlated_samples(self, batch_size):
         N = 2 * batch_size
         mask = torch.ones((N, N))
