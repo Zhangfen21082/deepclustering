@@ -122,6 +122,7 @@ if __name__ == "__main__":
         optimizer.load_state_dict(checkpoint['optimizer'])
         args.start_epoch = checkpoint['epoch'] + 1
     loss_device = torch.device("cuda")
+    
     criterion_instance = contrastive_loss.InstanceLoss(args.batch_size, args.instance_temperature, loss_device).to(
         loss_device)
     criterion_cluster = contrastive_loss.ClusterLoss(class_num, args.cluster_temperature, loss_device).to(loss_device)

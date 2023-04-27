@@ -1,12 +1,3 @@
-"""
-MIT License
-
-Copyright (c) 2020 Phil Wang
-https://github.com/lucidrains/byol-pytorch/
-
-Adjusted to de-couple for data loading, parallel training
-"""
-
 import copy
 import random
 from functools import wraps
@@ -15,16 +6,25 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from torchvision import transforms as T
+
 # helper functions
 
-
+"""
+如果val为None，则返回默认值defval，否则返回val
+"""
 def default(val, def_val):
     return def_val if val is None else val
 
-
+"""
+展平
+"""
 def flatten(t):
     return t.reshape(t.shape[0], -1)
 
+"""
+这个装饰器的作用是为了避免重复创建实例，提高代码的效率。
+"""
 
 def singleton(cache_key):
     def inner_fn(fn):
@@ -37,14 +37,13 @@ def singleton(cache_key):
             instance = fn(self, *args, **kwargs)
             setattr(self, cache_key, instance)
             return instance
-
         return wrapper
-
     return inner_fn
 
-
-# loss fn
-
+"""
+损失函数，用于计算两个向量x和y之间的相似度
+的是最小化两个向量之间的欧几里得距离，从而使它们更加相似
+"""
 
 def loss_fn(x, y):
     x = F.normalize(x, dim=-1, p=2)
@@ -52,8 +51,10 @@ def loss_fn(x, y):
     return 2 - 2 * (x * y).sum(dim=-1)
 
 
-# augmentation utils
-
+"""
+随机应用一个函数fn到输入x上，以一定的概率p。如果随机数大于p，则直接返回输入x，
+否则返回fn(x)。这个类通常用于数据增强，以增加模型的鲁棒性和泛化能力
+"""
 
 class RandomApply(nn.Module):
     def __init__(self, fn, p):
@@ -67,9 +68,7 @@ class RandomApply(nn.Module):
         return self.fn(x)
 
 
-# exponential moving average
-
-
+# 指数平均
 class EMA:
     def __init__(self, beta):
         super().__init__()
@@ -81,6 +80,7 @@ class EMA:
         return old * self.beta + (1 - self.beta) * new
 
 
+# 动量更新
 def update_moving_average(ema_updater, ma_model, current_model):
     for current_params, ma_params in zip(
         current_model.parameters(), ma_model.parameters()
@@ -90,8 +90,6 @@ def update_moving_average(ema_updater, ma_model, current_model):
 
 
 # MLP class for projector and predictor
-
-
 class MLP(nn.Module):
     def __init__(self, dim, projection_size, hidden_size=4096):
         super().__init__()
@@ -110,7 +108,9 @@ class MLP(nn.Module):
 # will manage the interception of the hidden layer output
 # and pipe it into the projecter and predictor nets
 
-
+"""
+是一个神经网络的包装器，用于管理隐藏层输出的拦截并将其传递到projector和predictor网络中
+"""
 class NetWrapper(nn.Module):
     def __init__(self, net, projection_size, projection_hidden_size, layer=-2, cluster_num=10):
         super().__init__()
